@@ -15,6 +15,22 @@
   .talk details[open] summary::before{content:"− "}
   .talk .abstract{font-size:.98rem;color:#444;margin-top:.6rem;max-width:62ch;line-height:1.65}
   #status{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#999;padding:1rem 0}
+  .talk{scroll-margin-top:88px}
+  .talk:target{animation:talk-flash 1.6s ease}
+  @keyframes talk-flash{0%{background:var(--paper-2)}100%{background:transparent}}
+
+  .schedule-wrap{overflow-x:auto;margin-top:.5rem}
+  table.schedule{width:100%;border-collapse:collapse;min-width:640px}
+  table.schedule th,table.schedule td{padding:.55rem .7rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:.92rem}
+  table.schedule thead th{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--sea);background:var(--paper-2)}
+  table.schedule td.time{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--ochre);white-space:nowrap}
+  table.schedule td.speaker{font-family:"Fraunces",serif;color:var(--deep)}
+  table.schedule td.speaker a{color:inherit;text-decoration:none;border-bottom:1px dotted var(--ochre)}
+  table.schedule td.speaker a:hover{color:var(--sea);border-bottom-color:var(--sea)}
+  table.schedule td.discussao{font-style:italic;color:var(--sea);font-size:.85rem}
+  table.schedule td.empty{color:var(--line)}
+  table.schedule tr.break-row td{background:var(--paper-2);text-align:center;font-family:"IBM Plex Mono",monospace;font-size:.75rem;letter-spacing:.05em;color:var(--ochre);text-transform:uppercase}
+  .schedule-legend{margin-top:.8rem;font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:#888;display:flex;flex-wrap:wrap;gap:1rem}
 </style>
 <script>
 MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] } };
@@ -42,7 +58,13 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
 </header>
 
 <section>
-  <div class="sec-head"><span class="sec-num">01</span><h2>Palestras</h2></div>
+  <div class="sec-head"><span class="sec-num">01</span><h2>Grade de horários</h2></div>
+  <div id="schedule-status" class="mono" style="font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:#999;padding-bottom:1rem">Carregando grade…</div>
+  <div id="schedule-holder"></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">02</span><h2>Palestras</h2></div>
   <div class="prose">
     <p>O cronograma detalhado e o livro de resumos serão disponibilizados em breve. Palestrantes confirmados, títulos e resumos são atualizados automaticamente.</p>
   </div>
@@ -90,6 +112,14 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
+  function slug(s){
+    return s.trim().toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g,'')
+      .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  }
+
+  var talkIds = {}; // slug(nome) -> id do card na seção Palestras
+
   function render(rows){
     var talks = document.getElementById('talks');
     var status = document.getElementById('status');
@@ -107,8 +137,10 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
       var titulo = (r[2]||'').trim();
       var resumo = (r[3]||'').trim();
       var filiacao = (r[1]||'').trim();
+      var id = 'talk-' + slug(nome);
+      talkIds[slug(nome)] = id;
       count++;
-      html += '<div class="talk">';
+      html += '<div class="talk" id="' + id + '">';
       html += '<span class="speaker">' + esc(nome) + '</span>';
       if (filiacao){
         html += '<span class="aff">' + esc(filiacao) + '</span>';
@@ -128,7 +160,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
     if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([talks]);
   }
 
-  fetch(CSV_URL)
+  var talksLoaded = fetch(CSV_URL)
     .then(function(resp){
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       return resp.text();
@@ -138,6 +170,82 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
       document.getElementById('status').textContent =
         'Não foi possível carregar a lista automática agora. Recarregue a página ou tente mais tarde.';
       console.error('Erro ao buscar planilha:', err);
+    });
+
+  var BREAK_LABELS = ['Boas vindas','Intervalo','Café','Almoço'];
+  var MUTED_LABELS = ['Discussões','Tarde livre'];
+
+  function renderSchedule(rows){
+    var headerIdx = -1, legendIdx = -1;
+    for (var i = 0; i < rows.length; i++){
+      var first = (rows[i][0] || '').trim();
+      if (first === 'Horário') headerIdx = i;
+      if (first.toLowerCase().indexOf('legenda') === 0) legendIdx = i;
+    }
+    if (headerIdx === -1) throw new Error('Cabeçalho "Horário" não encontrado na planilha');
+
+    var days = rows[headerIdx].slice(1).map(function(d){ return d.trim(); }).filter(Boolean);
+    var dataEnd = legendIdx === -1 ? rows.length : legendIdx;
+
+    var thead = '<thead><tr><th>Horário</th>' +
+      days.map(function(d){ return '<th>' + esc(d) + '</th>'; }).join('') + '</tr></thead>';
+
+    var body = '';
+    for (var i = headerIdx + 1; i < dataEnd; i++){
+      var r = rows[i];
+      var time = (r[0] || '').trim();
+      if (!time) continue;
+      var cells = days.map(function(_, idx){ return (r[idx + 1] || '').trim(); });
+
+      var isBreak = cells[0] && BREAK_LABELS.indexOf(cells[0]) !== -1 &&
+        cells.slice(1).every(function(c){ return !c; });
+
+      if (isBreak){
+        body += '<tr class="break-row"><td class="time">' + esc(time) + '</td>' +
+          '<td colspan="' + days.length + '">' + esc(cells[0]) + '</td></tr>';
+        continue;
+      }
+
+      body += '<tr><td class="time">' + esc(time) + '</td>';
+      cells.forEach(function(c){
+        if (!c) body += '<td class="empty">—</td>';
+        else if (MUTED_LABELS.indexOf(c) !== -1) body += '<td class="discussao">' + esc(c) + '</td>';
+        else {
+          var talkId = talkIds[slug(c)];
+          if (talkId) body += '<td class="speaker"><a href="#' + talkId + '">' + esc(c) + '</a></td>';
+          else body += '<td class="speaker">' + esc(c) + '</td>';
+        }
+      });
+      body += '</tr>';
+    }
+
+    var html = '<div class="schedule-wrap"><table class="schedule">' + thead + '<tbody>' + body + '</tbody></table></div>';
+
+    if (legendIdx !== -1){
+      var legend = rows[legendIdx].slice(1).map(function(l){ return l.trim(); }).filter(Boolean);
+      if (legend.length){
+        html += '<div class="schedule-legend">' + legend.map(function(l){ return esc(l); }).join(' · ') + '</div>';
+      }
+    }
+
+    document.getElementById('schedule-holder').innerHTML = html;
+    document.getElementById('schedule-status').textContent = '';
+  }
+
+  var SCHEDULE_SHEET_ID = '13sslBctN8kAtq6KCfc801TxLZuU8uQn-xFodWLVonuo';
+  var SCHEDULE_CSV_URL = 'https://docs.google.com/spreadsheets/d/' + SCHEDULE_SHEET_ID + '/gviz/tq?tqx=out:csv';
+
+  talksLoaded
+    .then(function(){ return fetch(SCHEDULE_CSV_URL); })
+    .then(function(resp){
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.text();
+    })
+    .then(function(text){ renderSchedule(parseCSV(text)); })
+    .catch(function(err){
+      document.getElementById('schedule-status').textContent =
+        'Não foi possível carregar a grade de horários agora. Recarregue a página ou tente mais tarde.';
+      console.error('Erro ao buscar grade de horários:', err);
     });
 })();
 </script>
