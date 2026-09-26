@@ -59,6 +59,7 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
     <label for="nav-toggle" class="nav-burger" aria-label="Abrir menu"><span></span><span></span><span></span></label>
     <div class="nav-links">
       <a href="index.html">Início</a>
+      <a href="sessao-problemas.html">Problemas</a>
       <a href="index.html#inscricao">Inscrição</a>
       <a href="anteriores.html">Edições anteriores</a>
     </div>
@@ -88,8 +89,16 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
   <p class="note">Clique em "resumo" para expandir o resumo de cada palestra, quando disponível.</p>
 </section>
 
+<section id="sessao-problemas">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Sessão de problemas</h2></div>
+  <div class="prose">
+    <p>A manhã de <b>segunda-feira, 28 de setembro</b>, é dedicada a problemas em aberto. Estão disponíveis para leitura prévia os conjuntos propostos por <b>Ugo Bruzzo</b> e <b>Rodrigo Gondim</b> (álgebras de Cox-Gorenstein), <b>Thiago Holleben</b> (matchings e WLP) e <b>Giovanna Ilardi</b> e <b>Abbas Nasrollah Nejad</b> (formas associadas e geometria de Veronese). Haverá ainda uma <b>sessão bônus</b> sobre teoria de linkage em fibrados vetoriais, proposta por <b>Marcos Jardim</b>.</p>
+    <p><a href="sessao-problemas.html">Ver os problemas e baixar os PDFs</a>.</p>
+  </div>
+</section>
+
 <section>
-  <div class="sec-head"><span class="sec-num">03</span><h2>Pôsteres</h2></div>
+  <div class="sec-head"><span class="sec-num">04</span><h2>Pôsteres</h2></div>
   <div class="prose">
     <p>Trabalhos aceitos para apresentação em pôster.</p>
   </div>
@@ -294,6 +303,9 @@ MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']] }, options: { skipHtmlT
       cells.forEach(function(c){
         if (!c) body += '<td class="empty">—</td>';
         else if (MUTED_LABELS.indexOf(c) !== -1) body += '<td class="discussao">' + esc(c) + '</td>';
+        else if (slug(c) === 'sessao-de-problemas'){
+          body += '<td class="speaker"><a href="sessao-problemas.html">' + esc(c) + '</a></td>';
+        }
         else {
           var talkId = talkIds[slug(c)];
           if (talkId) body += '<td class="speaker"><a href="#' + talkId + '">' + esc(c) + '</a></td>';
